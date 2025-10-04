@@ -3,41 +3,37 @@ import { NextResponse } from "next/server"
 const SUPABASE_URL = "https://sotlivluneouoaptserx.supabase.co"
 const SUPABASE_KEY = process.env.SUPABASE_KEY
 
-const TABLES = {
-  archive_records: {
-    select: "id,title,description:content,external_url:url,created_at",
-    searchCol: "title",
-  },
-  legal_archive: {
-    select: "id,title,description:content,external_url:url,created_at",
-    searchCol: "title",
-  },
-}
-
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url)
-    const q = searchParams.get("q")
-    let limit = searchParams.get("limit") ?? "10"
-    let offset = searchParams.get("offset") ?? "0"
-    const table = searchParams.get("table") ?? "archive_records"
 
-    if (!q) return NextResponse.json({ error: "Missing ?q" }, { status: 400 })
+    const select = searchParams.get("select") || "*"
+    const jurisdiction = searchParams.get("jurisdiction")
+    const source_type = searchParams.get("source_type")
+    const citation = searchParams.get("citation")
+    const date = searchParams.get("date")
+    const id = searchParams.get("id")
+    const order = searchParams.get("order")
+    let limit = searchParams.get("limit") || "10"
+    let offset = searchParams.get("offset") || "0"
+
     if (!SUPABASE_KEY) {
       return NextResponse.json({ error: "Missing SUPABASE_KEY" }, { status: 500 })
     }
-    if (!TABLES[table]) {
-      return NextResponse.json({ error: "Invalid table", allowed: Object.keys(TABLES) }, { status: 400 })
-    }
 
-    // coerce & guard
     limit = String(Math.min(Math.max(Number.parseInt(limit, 10) || 10, 1), 100))
     offset = String(Math.max(Number.parseInt(offset, 10) || 0, 0))
 
-    const cfg = TABLES[table]
-    const url = new URL(`${SUPABASE_URL}/rest/v1/${table}`)
-    url.searchParams.set("select", cfg.select)
-    url.searchParams.set(cfg.searchCol, `ilike.*${q}*`)
+    const url = new URL(`${SUPABASE_URL}/rest/v1/legal_archive`)
+    url.searchParams.set("select", select)
+
+    if (jurisdiction) url.searchParams.set("jurisdiction", jurisdiction)
+    if (source_type) url.searchParams.set("source_type", source_type)
+    if (citation) url.searchParams.set("citation", citation)
+    if (date) url.searchParams.set("date", date)
+    if (id) url.searchParams.set("id", id)
+    if (order) url.searchParams.set("order", order)
+
     url.searchParams.set("limit", limit)
     url.searchParams.set("offset", offset)
 
