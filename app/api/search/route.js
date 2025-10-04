@@ -1,38 +1,58 @@
-import { NextResponse } from 'next/server';
+import { NextResponse } from "next/server"
+
+const SUPABASE_URL = "https://sotlivluneouoaptserx.supabase.co"
+const SUPABASE_KEY = process.env.SUPABASE_KEY
 
 const TABLES = {
-  archive_records: 'id,title,external_url:url,description:content,created_at',
-  legal_archive: 'id,title,external_url:url,description:content,created_at'
-};
+  archive_records: {
+    select: "id,title,description:content,external_url:url,created_at",
+    searchCol: "title",
+  },
+  legal_archive: {
+    select: "id,title,description:content,external_url:url,created_at",
+    searchCol: "title",
+  },
+}
 
 export async function GET(request) {
-  const { searchParams } = new URL(request.url);
-  const q = searchParams.get('q');
-  const table = searchParams.get('table') || 'archive_records';
-  const limit = Math.min(Math.max(parseInt(searchParams.get('limit')) || 10, 1), 100);
-  const offset = Math.max(parseInt(searchParams.get('offset')) || 0, 0);
-
-  if (!q) return NextResponse.json({ error: 'Missing query parameter: q' }, { status: 400 });
-  
-  const cfg = TABLES[table];
-  if (!cfg) return NextResponse.json({ error: 'Invalid table', allowed: Object.keys(TABLES) }, { status: 400 });
-
-  const KEY = process.env.SUPABASE_KEY;
-  if (!KEY) return NextResponse.json({ error: 'SUPABASE_KEY not configured' }, { status: 500 });
-
   try {
-    const url = new URL(`https://sotlivluneouoaptserx.supabase.co/rest/v1/${table}`);
-    url.searchParams.set('select', cfg);
-    url.searchParams.set('title', `ilike.*${q}*`);
-    url.searchParams.set('limit', String(limit));
-    url.searchParams.set('offset', String(offset));
+    const { searchParams } = new URL(request.url)
+    const q = searchParams.get("q")
+    let limit = searchParams.get("limit") ?? "10"
+    let offset = searchParams.get("offset") ?? "0"
+    const table = searchParams.get("table") ?? "archive_records"
+
+    if (!q) return NextResponse.json({ error: "Missing ?q" }, { status: 400 })
+    if (!SUPABASE_KEY) {
+      return NextResponse.json({ error: "Missing SUPABASE_KEY" }, { status: 500 })
+    }
+    if (!TABLES[table]) {
+      return NextResponse.json({ error: "Invalid table", allowed: Object.keys(TABLES) }, { status: 400 })
+    }
+
+    // coerce & guard
+    limit = String(Math.min(Math.max(Number.parseInt(limit, 10) || 10, 1), 100))
+    offset = String(Math.max(Number.parseInt(offset, 10) || 0, 0))
+
+    const cfg = TABLES[table]
+    const url = new URL(`${SUPABASE_URL}/rest/v1/${table}`)
+    url.searchParams.set("select", cfg.select)
+    url.searchParams.set(cfg.searchCol, `ilike.*${q}*`)
+    url.searchParams.set("limit", limit)
+    url.searchParams.set("offset", offset)
 
     const r = await fetch(url, {
-      headers: { apikey: KEY, Authorization: `Bearer ${KEY}`, Prefer: 'count=exact' }
-    });
+      headers: {
+        apikey: SUPABASE_KEY,
+        Authorization: `Bearer ${SUPABASE_KEY}`,
+        Prefer: "count=exact",
+      },
+    })
 
-    return new Response(await r.text(), { status: r.status });
+    const text = await r.text()
+    const headers = { "Content-Type": "application/json" }
+    return new NextResponse(text, { status: r.status, headers })
   } catch (e) {
-    return NextResponse.json({ error: 'Internal error', message: e.message }, { status: 500 });
+    return NextResponse.json({ error: "Proxy error", detail: String(e) }, { status: 500 })
   }
 }
